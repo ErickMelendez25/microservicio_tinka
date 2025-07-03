@@ -21,11 +21,12 @@ app = FastAPI()
 # Habilitar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://qiskit.academionlinegpt.com"],
+    allow_origin_regex=".*",  # ← Permite todo temporalmente para debug
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Directorios de salida
 GRAFICOS_DIR = "graficos"

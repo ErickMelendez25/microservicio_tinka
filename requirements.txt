@@ -5,3 +5,9 @@ mysql-connector-python
 scikit-learn
 qiskit
 qiskit-machine-learning
+
+
+matplotlib
+seaborn
+numpy
+
