@@ -63,7 +63,7 @@ def root():
 
 
 # 🔍 MODELO 1: Análisis por zona
-@app.post("/ejecutarmodelo")
+@app.post("/ejecut")
 def ejecutar_modelo(data: ZonaRequest):
     zona_id = data.zona_id
 
@@ -181,26 +181,30 @@ def ejecutar_modelo_loteria(request: DummyRequest):
         predicciones = []
 
         for bolas in seleccionadas:
-            bolas = sorted(bolas)
-            boliyapa = random.choice([n for n in range(1, 51) if n not in bolas])
-            row = {f'bola{i+1}': bolas[i] for i in range(6)}
-            row['boliyapa'] = boliyapa
-            vec = quantum_encode(row)
-            pred = model.predict([vec])[0]
-            media = sum(bolas) // 6
-            clase_real = media // 10
-            probabilidad = 1.0 if pred == clase_real else 0.5
-            top_pares = sum([pares[p] for p in combinations(bolas, 2)])
-            top_trios = sum([trios[t] for t in combinations(bolas, 3)])
+            try:
+                bolas = sorted(bolas)
+                boliyapa = random.choice([n for n in range(1, 51) if n not in bolas])
+                row = {f'bola{i+1}': bolas[i] for i in range(6)}
+                row['boliyapa'] = boliyapa
+                vec = quantum_encode(row)
+                pred = model.predict([vec])[0]
+                media = sum(bolas) // 6
+                clase_real = media // 10
+                probabilidad = 1.0 if pred == clase_real else 0.5
+                top_pares = sum([pares[p] for p in combinations(bolas, 2)])
+                top_trios = sum([trios[t] for t in combinations(bolas, 3)])
 
-            cursor.execute("""
-                INSERT INTO predicciones (
-                    bola1, bola2, bola3, bola4, bola5, bola6,
-                    boliyapa, probabilidad, modelo_version, pares, trios
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, tuple(bolas) + (boliyapa, probabilidad, "Qiskit-v1", top_pares, top_trios))
+                cursor.execute("""
+                    INSERT INTO predicciones (
+                        bola1, bola2, bola3, bola4, bola5, bola6,
+                        boliyapa, probabilidad, modelo_version, pares, trios
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, tuple(bolas) + (boliyapa, probabilidad, "Qiskit-v1", top_pares, top_trios))
 
-            predicciones.append({**row, "probabilidad": probabilidad, "modelo_version": "Qiskit-v1", "pares": top_pares, "trios": top_trios})
+                predicciones.append({**row, "probabilidad": probabilidad, "modelo_version": "Qiskit-v1", "pares": top_pares, "trios": top_trios})
+
+            except Exception as e:
+                print("[ERROR] Falló la inserción de una predicción:", e)
 
         # 🧪 Simulación cuántica
         qc_viz = QuantumCircuit(3, 3)
