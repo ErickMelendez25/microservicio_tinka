@@ -10,4 +10,3 @@ seaborn
 qiskit==0.44.1
 qiskit-machine-learning==0.5.0
 qiskit-terra==0.25.1 --only-binary :all:
-symengine==0.9.2 --only-binary :all:
