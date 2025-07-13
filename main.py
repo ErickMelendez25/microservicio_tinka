@@ -27,10 +27,10 @@ from collections import Counter
 # Cargar variables de entorno
 load_dotenv()
 
-# Inicializar FastAPI
+# 🔧 Inicializar FastAPI
 app = FastAPI()
 
-# CORS
+# ✅ CORS middleware (🔒 muy importante que esté justo después de app = FastAPI())
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://tinka.academionlinegpt.com"],
@@ -39,25 +39,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# Crear carpetas necesarias
+# 📁 Crear carpetas necesarias
 os.makedirs("static", exist_ok=True)
 os.makedirs("graficos", exist_ok=True)
 os.makedirs("interpretaciones", exist_ok=True)
 
-# Montar archivos estáticos
+# 🖼️ Montar archivos estáticos
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+# 🧾 Modelos
 class ZonaRequest(BaseModel):
     zona_id: int
 
 class DummyRequest(BaseModel):
     ejecutar: bool = True
 
+
+# ✅ Endpoint de prueba
 @app.get("/")
 def root():
     return {"mensaje": "✅ API de Tinka está corriendo correctamente"}
 
+
+# 🔍 MODELO 1: Análisis por zona
 @app.post("/ejecutarmodelo")
 def ejecutar_modelo(data: ZonaRequest):
     zona_id = data.zona_id
@@ -118,6 +123,8 @@ def ejecutar_modelo(data: ZonaRequest):
         "interpretacion": f"/interpretacion/{zona_id}"
     }
 
+
+# 🔮 MODELO 2: Predicción cuántica de La Tinka
 @app.post("/api/ejecutarmodelos")
 def ejecutar_modelo_loteria(request: DummyRequest):
     try:
@@ -195,7 +202,7 @@ def ejecutar_modelo_loteria(request: DummyRequest):
 
             predicciones.append({**row, "probabilidad": probabilidad, "modelo_version": "Qiskit-v1", "pares": top_pares, "trios": top_trios})
 
-        # Visualización cuántica
+        # 🧪 Simulación cuántica
         qc_viz = QuantumCircuit(3, 3)
         qc_viz.h([0, 1, 2])
         qc_viz.measure([0, 1, 2], [0, 1, 2])
@@ -216,6 +223,8 @@ def ejecutar_modelo_loteria(request: DummyRequest):
     except Exception as e:
         return {"error": str(e)}
 
+
+# 🖼️ Rutas para ver imágenes y textos
 @app.get("/grafico/cluster/{zona_id}")
 def ver_cluster(zona_id: int):
     return FileResponse(os.path.join("graficos", f"clusters_zona_{zona_id}.png"), media_type="image/png")
@@ -228,6 +237,8 @@ def ver_kernel(zona_id: int):
 def ver_interpretacion(zona_id: int):
     return FileResponse(os.path.join("interpretaciones", f"interpretacion_zona_{zona_id}.txt"), media_type="text/plain")
 
+
+# 📊 Funciones auxiliares
 def graficar_clusters(X, labels, zona_id):
     pca = PCA(n_components=2)
     X_reducido = pca.fit_transform(X)
