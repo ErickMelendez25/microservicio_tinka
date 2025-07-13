@@ -228,12 +228,12 @@ def ejecutar_modelo_loteria(request: DummyRequest):
             print(pred)  # Esto mostrará cada predicción generada en la consola del backend
 
 
-        return {"message": "✅ Modelo ejecutado correctamente", 
-                "message": f"✅ Se insertaron {len(predicciones)} predicciones correctamente.",
-                "predicciones_generadas": predicciones,
-               
-                }
-    
+        return {
+            "status": "✅ Modelo ejecutado correctamente",
+            "detalle": f"✅ Se insertaron {len(predicciones)} predicciones correctamente.",
+            "predicciones_generadas": predicciones,
+        }
+
 
     except Exception as e:
         return {"error": str(e)}
