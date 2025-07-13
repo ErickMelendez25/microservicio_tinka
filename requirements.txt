@@ -3,9 +3,11 @@ uvicorn[standard]
 python-dotenv
 mysql-connector-python
 scikit-learn
-qiskit
-qiskit-machine-learning==0.6.1
 matplotlib
 seaborn
 numpy
 pandas
+
+# ✅ Qiskit versión clásica (compatible con Aer y ZZFeatureMap)
+qiskit==0.44.1
+qiskit-machine-learning==0.5.0
