@@ -33,11 +33,7 @@ app = FastAPI()
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://tinka.academionlinegpt.com",
-        "https://tinka-production.up.railway.app",
-        "http://localhost:5173"
-    ],
+    allow_origin_regex=".*",  # permite todos los dominios
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
