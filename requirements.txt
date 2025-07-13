@@ -19,4 +19,4 @@ seaborn==0.13.2
 
 # Qiskit y Quantum Machine Learning
 qiskit==1.0.2
-qiskit-machine-learning==0.8.0
+qiskit-machine-learning>=0.7.0,<0.9.0
