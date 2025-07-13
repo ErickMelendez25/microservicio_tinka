@@ -2,12 +2,10 @@ fastapi
 uvicorn[standard]
 python-dotenv
 mysql-connector-python
-numpy
-pandas
 scikit-learn
+qiskit
+qiskit-machine-learning==0.6.1
 matplotlib
 seaborn
-
-qiskit==0.46.0
-qiskit-aer==0.13.0
-qiskit-machine-learning==0.8.0
+numpy
+pandas
