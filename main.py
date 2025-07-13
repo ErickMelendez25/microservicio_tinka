@@ -33,7 +33,7 @@ app = FastAPI()
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",  # permite todos los dominios
+    allow_origins=["*"]  # o tu dominio exacto
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
