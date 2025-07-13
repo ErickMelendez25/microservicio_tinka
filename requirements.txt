@@ -2,12 +2,12 @@ fastapi
 uvicorn[standard]
 python-dotenv
 mysql-connector-python
+numpy
+pandas
 scikit-learn
 matplotlib
 seaborn
-numpy
-pandas
-
-# ✅ Qiskit versión clásica (compatible con Aer y ZZFeatureMap)
 qiskit==0.44.1
 qiskit-machine-learning==0.5.0
+qiskit-terra==0.25.1 --only-binary :all:
+symengine==0.9.2 --only-binary :all:
