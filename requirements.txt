@@ -9,4 +9,4 @@ matplotlib
 seaborn
 qiskit
 qiskit-aer
-qiskit-machine-learning>=0.8.0
+qiskit-machine-learning==0.8.0
