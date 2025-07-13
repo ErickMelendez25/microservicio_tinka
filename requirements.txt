@@ -4,7 +4,7 @@ python-dotenv
 mysql-connector-python
 scikit-learn
 qiskit
-qiskit-machine-learning
+qiskit-machine-learning>=0.8.0
 
 
 matplotlib
