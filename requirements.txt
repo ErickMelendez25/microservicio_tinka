@@ -1,13 +1,22 @@
-fastapi
-uvicorn
-python-dotenv
-mysql-connector-python
-scikit-learn
-qiskit
-qiskit-machine-learning
+# Backend web
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
 
+# Entorno y configuración
+python-dotenv==1.0.1
 
-matplotlib
-seaborn
-numpy
+# Conexión MySQL
+mysql-connector-python==8.4.0
 
+# Ciencia de datos y ML
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.0
+
+# Visualización
+matplotlib==3.9.0
+seaborn==0.13.2
+
+# Qiskit y Quantum Machine Learning
+qiskit==1.0.2
+qiskit-machine-learning==0.8.0
