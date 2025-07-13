@@ -7,6 +7,6 @@ pandas
 scikit-learn
 matplotlib
 seaborn
-qiskit==0.44.1
-qiskit-machine-learning==0.5.0
-qiskit-terra==0.25.1 --only-binary :all:
+qiskit
+qiskit-machine-learning
+qiskit-terra 
