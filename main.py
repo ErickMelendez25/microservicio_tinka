@@ -217,8 +217,19 @@ def ejecutar_modelo_loteria(request: DummyRequest):
         conn.commit()
         cursor.close()
         conn.close()
+        
+        # Al final de la función ejecutar_modelo_loteria
+        print(f"[LOG] Se generaron {len(predicciones)} predicciones:")
+        for pred in predicciones:
+            print(pred)  # Esto mostrará cada predicción generada en la consola del backend
 
-        return {"message": "✅ Modelo ejecutado correctamente", "predicciones_generadas": predicciones}
+
+        return {"message": "✅ Modelo ejecutado correctamente", 
+                "message": f"✅ Se insertaron {len(predicciones)} predicciones correctamente.",
+                "predicciones_generadas": predicciones,
+               
+                }
+    
 
     except Exception as e:
         return {"error": str(e)}
