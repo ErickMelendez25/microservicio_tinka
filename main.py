@@ -33,11 +33,12 @@ app = FastAPI()
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://tinka.academionlinegpt.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Crear carpetas necesarias
 os.makedirs("static", exist_ok=True)
