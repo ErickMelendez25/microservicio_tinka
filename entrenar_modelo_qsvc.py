@@ -4,9 +4,8 @@ import os
 import mysql.connector
 from dotenv import load_dotenv
 from qiskit.circuit.library import ZZFeatureMap
-from qiskit_machine_learning.kernels import QuantumKernel
+from qiskit_machine_learning.kernels import FidelityQuantumKernel
 from qiskit_machine_learning.algorithms import QSVC
-from qiskit_aer import Aer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from joblib import dump
@@ -37,19 +36,19 @@ df = pd.DataFrame(sorteos).dropna(subset=[f"bola{i}" for i in range(1, 7)])
 X = df[[f"bola{i}" for i in range(1, 7)]].values
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
-y = df[[f"bola{i}" for i in range(1, 7)]].mean(axis=1) // 10
+y = df[[f"bola{i}" for i in range(1, 7)]].mean(axis=1) // 10  # Clase según promedio
 
-# 🔀 4. Entrenamiento con solo 200 muestras
+# 🔀 4. Seleccionar subconjunto para entrenamiento
 print("🔀 Seleccionando 200 muestras para entrenamiento...")
 X_train, _, y_train, _ = train_test_split(X_scaled, y, train_size=200, random_state=42)
 
-# ⚛️ 5. Definir modelo cuántico
-print("⚛️ Inicializando QSVC...")
+# ⚛️ 5. Definir modelo cuántico con kernel moderno
+print("⚛️ Inicializando QSVC con FidelityQuantumKernel...")
 feature_map = ZZFeatureMap(feature_dimension=6, reps=1)
-kernel = QuantumKernel(feature_map=feature_map, quantum_instance=Aer.get_backend('aer_simulator'))
+kernel = FidelityQuantumKernel(feature_map=feature_map)
 model = QSVC(quantum_kernel=kernel)
 
-# 🚀 6. Entrenar
+# 🚀 6. Entrenar el modelo
 print("🚀 Entrenando modelo cuántico...")
 start = time.time()
 model.fit(X_train, y_train)
