@@ -229,6 +229,7 @@ def ejecutar_modelo_loteria(_: DummyRequest):
     except Exception as e:
         if conn:
             conn.rollback()
+        print("❌ ERROR AL EJECUTAR MODELO:", e)  # 👈 esto te da el error exacto en consola
         return {"error": str(e)}
 
     finally:
