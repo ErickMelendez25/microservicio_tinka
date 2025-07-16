@@ -34,6 +34,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+                             #allow_origins=["https://tinka.academionlinegpt.com","http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # <- solo durante desarrollo
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Servir carpeta de archivos estáticos
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

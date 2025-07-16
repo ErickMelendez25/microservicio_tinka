@@ -23,6 +23,7 @@ import seaborn as sns
 from itertools import combinations
 import random
 from collections import Counter
+from joblib import load
 
 # Cargar variables de entorno
 load_dotenv()
@@ -31,13 +32,19 @@ load_dotenv()
 app = FastAPI()
 
 # ✅ CORS middleware (🔒 muy importante que esté justo después de app = FastAPI())
+
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=["*"],
     allow_origins=["https://tinka.academionlinegpt.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+
 
 # 📁 Crear carpetas necesarias
 os.makedirs("static", exist_ok=True)
@@ -60,6 +67,11 @@ class DummyRequest(BaseModel):
 @app.get("/")
 def root():
     return {"mensaje": "✅ API de Tinka está corriendo correctamente"}
+
+@app.options("/api/ejecutarmodelos")
+def preflight_handler():
+    return {"message": "Preflight received"}
+
 
 
 # 🔍 MODELO 1: Análisis por zona
@@ -126,7 +138,9 @@ def ejecutar_modelo(data: ZonaRequest):
 
 # 🔮 MODELO 2: Predicción cuántica de La Tinka
 @app.post("/api/ejecutarmodelos")
-def ejecutar_modelo_loteria(request: DummyRequest):
+def ejecutar_modelo_loteria(_: DummyRequest):
+    conn = None
+    cursor = None
     try:
         conn = mysql.connector.connect(
             host=os.getenv("DB_HOST"),
@@ -137,106 +151,93 @@ def ejecutar_modelo_loteria(request: DummyRequest):
         )
         cursor = conn.cursor(dictionary=True)
 
+        # Traer sorteos y procesar datos
         cursor.execute("SELECT * FROM sorteos ORDER BY fecha ASC")
-        df = pd.DataFrame(cursor.fetchall())
-
-        if len(df) < 8:
-            return {"error": "❌ No hay suficientes datos para entrenar el modelo."}
-
-        todas_bolas = df[[f'bola{i}' for i in range(1, 7)]].values.flatten()
-        frecuencia_individual = Counter(todas_bolas)
-        pares = Counter()
-        trios = Counter()
-
+        sorteos = cursor.fetchall()
+        df = pd.DataFrame(sorteos).dropna(subset=[f"bola{i}" for i in range(1, 7)])
+        
+        # Análisis estadístico
+        todas_bolas = df[[f"bola{i}" for i in range(1, 7)]].values.flatten()
+        frecuencia = Counter(todas_bolas)
+        pares, trios = Counter(), Counter()
         for _, row in df.iterrows():
-            bolas = [int(row[f'bola{i}']) for i in range(1, 7)]
+            bolas = [row[f"bola{i}"] for i in range(1, 7)]
             pares.update(combinations(sorted(bolas), 2))
             trios.update(combinations(sorted(bolas), 3))
 
-        def quantum_encode(row):
-            vec = np.zeros(50)
-            for b in ['bola1', 'bola2', 'bola3', 'bola4', 'bola5', 'bola6']:
-                vec[int(row[b]) - 1] = 1
-            try:
-                boliyapa = int(row['boliyapa'])
-                if boliyapa not in [int(row[f'bola{i}']) for i in range(1, 7)]:
-                    vec[boliyapa - 1] += 0.5
-            except:
-                pass
-            return vec
+        # Codificador directo (6 bolas → vector de 6 números)
+        def quantum_encode(bolas):
+            return [float(b) for b in bolas]  # <-- Compatible con el modelo entrenado y serialización
 
-        X = np.stack(df.apply(quantum_encode, axis=1))
-        y = np.array([int(sum(row[[f'bola{i}' for i in range(1, 7)]]) / 6) // 10 for _, row in df.iterrows()])
+        # Cargar modelo
+        model = load("modelo_qsvc_tinka.joblib")
+        scaler = load("scaler_qsvc_tinka.joblib")
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        feature_map = ZZFeatureMap(feature_dimension=50, reps=2, entanglement='linear')
-        quantum_kernel = QuantumKernel(feature_map=feature_map, quantum_instance=Aer.get_backend('aer_simulator'))
-        model = QSVC(quantum_kernel=quantum_kernel)
-        model.fit(X_train, y_train)
+        # Generar combinaciones
+        top_bolas = [n for n, _ in frecuencia.most_common(25)]
+        combinaciones = random.sample(list(combinations(top_bolas, 6)), 100)
 
-        top_numeros = [n for n, _ in frecuencia_individual.most_common(30)]
-        seleccionadas = random.sample(list(combinations(top_numeros, 6)), 10)
-
+        # Eliminar predicciones anteriores
         cursor.execute("DELETE FROM predicciones")
+
         predicciones = []
 
-        for bolas in seleccionadas:
-            try:
-                bolas = sorted(bolas)
-                boliyapa = random.choice([n for n in range(1, 51) if n not in bolas])
-                row = {f'bola{i+1}': bolas[i] for i in range(6)}
-                row['boliyapa'] = boliyapa
-                vec = quantum_encode(row)
-                pred = model.predict([vec])[0]
-                media = sum(bolas) // 6
-                clase_real = media // 10
-                probabilidad = 1.0 if pred == clase_real else 0.5
-                top_pares = sum([pares[p] for p in combinations(bolas, 2)])
-                top_trios = sum([trios[t] for t in combinations(bolas, 3)])
+        for bolas in combinaciones:
+            bolas = sorted(bolas)
+            vec = quantum_encode(bolas)
+            vec_scaled = scaler.transform([vec])
+            pred = model.predict(vec_scaled)[0]
+            media = sum(bolas) / 6
+            clase_real = media // 10
+            probabilidad = 1.0 if pred == clase_real else (0.9 if abs(pred - clase_real) <= 1 else 0.5)
 
-                cursor.execute("""
-                    INSERT INTO predicciones (
-                        bola1, bola2, bola3, bola4, bola5, bola6,
-                        boliyapa, probabilidad, modelo_version, pares, trios
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, tuple(bolas) + (boliyapa, probabilidad, "Qiskit-v1", top_pares, top_trios))
+            top_pares = sum([pares[p] for p in combinations(bolas, 2)])
+            top_trios = sum([trios[t] for t in combinations(bolas, 3)])
+            boliyapa = random.choice([n for n in range(1, 51) if n not in bolas])
 
-                predicciones.append({**row, "probabilidad": probabilidad, "modelo_version": "Qiskit-v1", "pares": top_pares, "trios": top_trios})
+            # Conversión explícita a tipos nativos
+            registro = {
+                **{f"bola{i+1}": int(bolas[i]) for i in range(6)},
+                "boliyapa": int(boliyapa),
+                "probabilidad": float(round(probabilidad, 2)),
+                "modelo_version": "Qiskit-v3",
+                "pares": int(top_pares),
+                "trios": int(top_trios)
+            }
 
-            except Exception as e:
-                print("[ERROR] Falló la inserción de una predicción:", e)
-
-        # 🧪 Simulación cuántica
-        qc_viz = QuantumCircuit(3, 3)
-        qc_viz.h([0, 1, 2])
-        qc_viz.measure([0, 1, 2], [0, 1, 2])
-        sim = Aer.get_backend('aer_simulator')
-        conteos = sim.run(qc_viz, shots=5000).result().get_counts()
-
-        conteos_dado = {int(k, 2): v for k, v in conteos.items() if 1 <= int(k, 2) <= 6}
-        plot_histogram(conteos_dado, title="Visualización Cuántica: Superposición y Colapso")
-        plt.savefig("static/superposicion_colapso.png")
-        plt.close()
+            cursor.execute("""
+                INSERT INTO predicciones (
+                    bola1, bola2, bola3, bola4, bola5, bola6,
+                    boliyapa, probabilidad, modelo_version, pares, trios
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, tuple(registro.values()))
+            
+            predicciones.append(registro)
 
         conn.commit()
-        cursor.close()
-        conn.close()
-        
-        # Al final de la función ejecutar_modelo_loteria
-        print(f"[LOG] Se generaron {len(predicciones)} predicciones:")
-        for pred in predicciones:
-            print(pred)  # Esto mostrará cada predicción generada en la consola del backend
 
+        # Retornar las 15 mejores combinaciones al frontend
+        predicciones_ordenadas = sorted(
+            predicciones,
+            key=lambda x: (-x["probabilidad"], -x["pares"], -x["trios"])
+        )[:15]
 
         return {
-            "status": "✅ Modelo ejecutado correctamente",
-            "detalle": f"✅ Se insertaron {len(predicciones)} predicciones correctamente.",
-            "predicciones_generadas": predicciones,
+            "status": "✅ Predicciones generadas con modelo cuántico",
+            "predicciones": predicciones_ordenadas
         }
 
-
     except Exception as e:
+        if conn:
+            conn.rollback()
         return {"error": str(e)}
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
 
 
 # 🖼️ Rutas para ver imágenes y textos
