@@ -36,7 +36,6 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
     allow_origins=["https://tinka.academionlinegpt.com"],
     allow_credentials=True,
     allow_methods=["*"],
