@@ -167,10 +167,15 @@ def ejecutar_modelo_loteria(_: DummyRequest):
         # Codificador directo (6 bolas → vector de 6 números)
         def quantum_encode(bolas):
             return [float(b) for b in bolas]  # <-- Compatible con el modelo entrenado y serialización
+        
+        import symengine
+        print("✅ Versión de SymEngine:", symengine.__version__)
 
         # Cargar modelo
+        print("✅ Intentando cargar modelo y scaler...")
         model = load("modelo_qsvc_tinka.joblib")
         scaler = load("scaler_qsvc_tinka.joblib")
+        print("✅ Modelo y scaler cargados correctamente.")
 
         # Generar combinaciones
         top_bolas = [n for n, _ in frecuencia.most_common(25)]
