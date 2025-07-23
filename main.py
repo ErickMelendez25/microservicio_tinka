@@ -36,7 +36,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://tinka.academionlinegpt.com"],
+    allow_origins=["https://tinka.academionlinegpt.com","http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -173,7 +173,7 @@ def ejecutar_modelo_loteria(_: DummyRequest):
 
         # Cargar modelo
         print("✅ Intentando cargar modelo y scaler...")
-        model = load("modelo_qsvc_tinka.joblib")
+        model = load("modelo_qsvc_fast.joblib")
         scaler = load("scaler_qsvc_tinka.joblib")
         print("✅ Modelo y scaler cargados correctamente.")
 

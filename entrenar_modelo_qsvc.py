@@ -11,6 +11,8 @@ from sklearn.preprocessing import StandardScaler
 from joblib import dump
 import time
 
+#from sklearn.ensemble import RandomForestClassifier
+
 # 📥 1. Cargar variables de entorno
 print("🔧 Cargando variables de entorno...")
 load_dotenv()
@@ -40,7 +42,8 @@ y = df[[f"bola{i}" for i in range(1, 7)]].mean(axis=1) // 10  # Clase según pro
 
 # 🔀 4. Seleccionar subconjunto para entrenamiento
 print("🔀 Seleccionando 200 muestras para entrenamiento...")
-X_train, _, y_train, _ = train_test_split(X_scaled, y, train_size=200, random_state=42)
+X_train, _, y_train, _ = train_test_split(X_scaled, y, train_size=1000, random_state=42)
+
 
 # ⚛️ 5. Definir modelo cuántico con kernel moderno
 print("⚛️ Inicializando QSVC con FidelityQuantumKernel...")
@@ -54,6 +57,14 @@ start = time.time()
 model.fit(X_train, y_train)
 end = time.time()
 print(f"✅ Entrenamiento completado en {round(end - start, 2)} segundos.")
+
+#print("⚡ Entrenando modelo rápido basado en el QSVC...")
+#fast_model = RandomForestClassifier()
+#fast_model.fit(X_train, y_train)
+
+# 💾 Guardar también el modelo rápido
+##dump(fast_model, "modelo_qsvc_fast.joblib")
+##print("✅ Modelo rápido guardado correctamente.")
 
 # 💾 7. Guardar modelo y scaler
 print("💾 Guardando modelo y scaler...")
