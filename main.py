@@ -34,13 +34,20 @@ app = FastAPI()
 # ✅ CORS middleware (🔒 muy importante que esté justo después de app = FastAPI())
 
 
+origins = [
+    "http://localhost:5173", 
+    "https://tinka.academionlinegpt.com",
+    "https://microservicioqiskit-production.up.railway.app"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 #app.add_middleware(
