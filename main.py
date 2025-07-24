@@ -372,21 +372,31 @@ Variables analizadas: {', '.join(tipos)}.
 """
 
     # Cálculo de promedios de la zona
-    df = pd.DataFrame(matrix)
-    df_cluster = pd.DataFrame(labels, columns=["cluster"])
-    promedio = df_cluster.join(pd.DataFrame(matrix)).groupby("cluster").mean().mean()
+    # Supongamos que 'tipos' es la lista de nombres de indicadores
+    df = pd.DataFrame(matrix, columns=tipos)
+
+    # Añade las etiquetas como columna
+    df["cluster"] = labels
+
+    # Calcula promedio general por indicador
+    promedios = df.groupby("cluster").mean().mean()
+
 
     # Comparación con cada cultivo
-    def evaluar_cultivo(cultivo, rangos, promedio):
+    def evaluar_cultivo(cultivo, rangos, promedios):
         puntaje = 0
         total = 0
-        for i, tipo in enumerate(tipos):
+        for tipo in tipos:
             if tipo in rangos:
+                valor = promedios.get(tipo)
+                if valor is None:
+                    continue
                 min_val, max_val = rangos[tipo]
-                if min_val <= promedio[i] <= max_val:
+                if min_val <= valor <= max_val:
                     puntaje += 1
                 total += 1
-        return (puntaje / total) * 100
+        return (puntaje / total) * 100 if total > 0 else 0
+
 
     recomendaciones = []
     for cultivo, rangos in RANGOS_CULTIVOS.items():
