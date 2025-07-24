@@ -25,6 +25,7 @@ import random
 from collections import Counter
 from joblib import load
 
+
 # Cargar variables de entorno
 load_dotenv()
 
@@ -423,7 +424,7 @@ Variables analizadas: {', '.join(tipos)}.
 
     recomendaciones = []
     for cultivo, rangos in RANGOS_CULTIVOS.items():
-        match_pct = evaluar_cultivo(cultivo, rangos, promedios)
+        match_pct, detalles = evaluar_cultivo(cultivo, rangos, promedios)
         recomendaciones.append((cultivo, match_pct))
 
     recomendaciones.sort(key=lambda x: -x[1])
@@ -437,16 +438,17 @@ Variables analizadas: {', '.join(tipos)}.
         cluster_df = df[df["cluster"] == cluster_id]
         promedios_cluster = cluster_df[tipos].mean()
     
-    recomendaciones_cluster = []
-    for cultivo, rangos in RANGOS_CULTIVOS.items():
-        match_pct = evaluar_cultivo(cultivo, rangos, promedios_cluster)
-        recomendaciones_cluster.append((cultivo, match_pct))
+        recomendaciones_cluster = []
+        for cultivo, rangos in RANGOS_CULTIVOS.items():
+            match_pct, detalles = evaluar_cultivo(cultivo, rangos, promedios_cluster)
+            recomendaciones_cluster.append((cultivo, match_pct))
 
-    recomendaciones_cluster.sort(key=lambda x: -x[1])
-    texto += f"\n➡️ Cluster {cluster_id}:\n"
-    for cultivo, pct in recomendaciones_cluster:
-        estado = "✅ Recomendado" if pct >= 70 else "⚠️ Parcial" if pct >= 40 else "❌ No recomendado"
-        texto += f"   - {cultivo.upper():<6}: {pct:.1f}% → {estado}\n"
+
+        recomendaciones_cluster.sort(key=lambda x: -x[1])
+        texto += f"\n➡️ Cluster {cluster_id}:\n"
+        for cultivo, pct in recomendaciones_cluster:
+            estado = "✅ Recomendado" if pct >= 70 else "⚠️ Parcial" if pct >= 40 else "❌ No recomendado"
+            texto += f"   - {cultivo.upper():<6}: {pct:.1f}% → {estado}\n"
 
 
     with open(f"interpretaciones/interpretacion_zona_{zona_id}.txt", "w", encoding="utf-8") as f:
