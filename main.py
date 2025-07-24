@@ -60,6 +60,46 @@ class ZonaRequest(BaseModel):
 
 class DummyRequest(BaseModel):
     ejecutar: bool = True
+    
+RANGOS_CULTIVOS = {
+    "papa": {
+        "temperatura": (15, 18),
+        "humedad": (60, 80),
+        "ph": (5.0, 6.5),
+        "nitrógeno": (30, 60),
+        "fósforo": (20, 40),
+        "potasio": (150, 300),
+        "conductividad": (0.2, 1.5)
+    },
+    "maiz": {
+        "temperatura": (20, 30),
+        "humedad": (50, 70),
+        "ph": (5.5, 7.5),
+        "nitrógeno": (30, 50),
+        "fósforo": (15, 30),
+        "potasio": (100, 200),
+        "conductividad": (0.2, 1.8)
+    },
+    "oca": {
+        "temperatura": (12, 18),
+        "humedad": (60, 80),
+        "ph": (5.0, 6.5),
+        "nitrógeno": (25, 50),
+        "fósforo": (15, 35),
+        "potasio": (100, 250),
+        "conductividad": (0.1, 1.5)
+    },
+    "haba": {
+        "temperatura": (12, 20),
+        "humedad": (60, 75),
+        "ph": (6.0, 7.0),
+        "nitrógeno": (20, 40),
+        "fósforo": (15, 30),
+        "potasio": (120, 250),
+        "conductividad": (0.1, 2.0)
+    }
+}
+
 
 
 # ✅ Endpoint de prueba
@@ -320,6 +360,7 @@ def generar_interpretacion(zona_id, labels, matrix, tipos):
     total = len(labels)
     grupo_0 = sum(1 for l in labels if l == 0)
     grupo_1 = total - grupo_0
+
     texto = f"""
 INTERPRETACIÓN DE RESULTADOS - ZONA {zona_id}
 
@@ -329,5 +370,35 @@ Se identificaron 2 grupos:
 
 Variables analizadas: {', '.join(tipos)}.
 """
+
+    # Cálculo de promedios de la zona
+    df = pd.DataFrame(matrix)
+    df_cluster = pd.DataFrame(labels, columns=["cluster"])
+    promedio = df_cluster.join(pd.DataFrame(matrix)).groupby("cluster").mean().mean()
+
+    # Comparación con cada cultivo
+    def evaluar_cultivo(cultivo, rangos, promedio):
+        puntaje = 0
+        total = 0
+        for i, tipo in enumerate(tipos):
+            if tipo in rangos:
+                min_val, max_val = rangos[tipo]
+                if min_val <= promedio[i] <= max_val:
+                    puntaje += 1
+                total += 1
+        return (puntaje / total) * 100
+
+    recomendaciones = []
+    for cultivo, rangos in RANGOS_CULTIVOS.items():
+        match_pct = evaluar_cultivo(cultivo, rangos, promedio)
+        recomendaciones.append((cultivo, match_pct))
+
+    recomendaciones.sort(key=lambda x: -x[1])
+    texto += "\n\nRECOMENDACIÓN DE CULTIVOS SEGÚN INDICADORES:\n"
+    for cultivo, pct in recomendaciones:
+        estado = "✅ Recomendado" if pct >= 70 else "⚠️ Parcial" if pct >= 40 else "❌ No recomendado"
+        texto += f"- {cultivo.upper():<6}: {pct:.1f}% coincidencia → {estado}\n"
+
     with open(f"interpretaciones/interpretacion_zona_{zona_id}.txt", "w", encoding="utf-8") as f:
         f.write(texto.strip())
+
