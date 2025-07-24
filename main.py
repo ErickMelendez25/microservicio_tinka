@@ -164,7 +164,9 @@ def ejecutar_modelo(data: ZonaRequest):
     graficar_heatmap(X, tipos, zona_id)
     graficar_matriz_confusion(labels, X, tipos, zona_id)
 
-    generar_interpretacion(zona_id, labels, matrix, tipos)
+    generar_interpretacion(zona_id, labels, X, tipos)
+
+
 
     return {
         "zona_id": zona_id,
@@ -356,7 +358,8 @@ def graficar_matriz_confusion(labels, X, tipos, zona_id):
     plt.close()
 
 
-def generar_interpretacion(zona_id, labels, matrix, tipos):
+def generar_interpretacion(zona_id, labels, X, tipos):
+    
     total = len(labels)
     grupo_0 = sum(1 for l in labels if l == 0)
     grupo_1 = total - grupo_0
@@ -373,7 +376,8 @@ Variables analizadas: {', '.join(tipos)}.
 
     # Cálculo de promedios de la zona
     # Supongamos que 'tipos' es la lista de nombres de indicadores
-    df = pd.DataFrame(matrix, columns=tipos)
+    df = pd.DataFrame(X, columns=tipos)
+
 
     # Añade las etiquetas como columna
     df["cluster"] = labels
@@ -386,6 +390,7 @@ Variables analizadas: {', '.join(tipos)}.
     def evaluar_cultivo(cultivo, rangos, promedios):
         puntaje = 0
         total = 0
+        detalles = []
         for tipo in tipos:
             if tipo in rangos:
                 valor = promedios.get(tipo)
@@ -394,13 +399,16 @@ Variables analizadas: {', '.join(tipos)}.
                 min_val, max_val = rangos[tipo]
                 if min_val <= valor <= max_val:
                     puntaje += 1
+                else:
+                    detalles.append(f"{tipo}: {valor:.2f} fuera de rango ({min_val}-{max_val})")
                 total += 1
-        return (puntaje / total) * 100 if total > 0 else 0
+        return (puntaje / total) * 100 if total > 0 else 0, detalles
+
 
 
     recomendaciones = []
     for cultivo, rangos in RANGOS_CULTIVOS.items():
-        match_pct = evaluar_cultivo(cultivo, rangos, promedio)
+        match_pct = evaluar_cultivo(cultivo, rangos, promedios)
         recomendaciones.append((cultivo, match_pct))
 
     recomendaciones.sort(key=lambda x: -x[1])
@@ -408,6 +416,23 @@ Variables analizadas: {', '.join(tipos)}.
     for cultivo, pct in recomendaciones:
         estado = "✅ Recomendado" if pct >= 70 else "⚠️ Parcial" if pct >= 40 else "❌ No recomendado"
         texto += f"- {cultivo.upper():<6}: {pct:.1f}% coincidencia → {estado}\n"
+        
+    texto += "\n\nANÁLISIS POR CLÚSTER:\n"
+for cluster_id in sorted(df["cluster"].unique()):
+    cluster_df = df[df["cluster"] == cluster_id]
+    promedios_cluster = cluster_df[tipos].mean()
+    
+    recomendaciones_cluster = []
+    for cultivo, rangos in RANGOS_CULTIVOS.items():
+        match_pct = evaluar_cultivo(cultivo, rangos, promedios_cluster)
+        recomendaciones_cluster.append((cultivo, match_pct))
+
+    recomendaciones_cluster.sort(key=lambda x: -x[1])
+    texto += f"\n➡️ Cluster {cluster_id}:\n"
+    for cultivo, pct in recomendaciones_cluster:
+        estado = "✅ Recomendado" if pct >= 70 else "⚠️ Parcial" if pct >= 40 else "❌ No recomendado"
+        texto += f"   - {cultivo.upper():<6}: {pct:.1f}% → {estado}\n"
+
 
     with open(f"interpretaciones/interpretacion_zona_{zona_id}.txt", "w", encoding="utf-8") as f:
         f.write(texto.strip())
