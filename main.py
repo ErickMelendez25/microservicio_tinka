@@ -103,7 +103,8 @@ def ejecutar_modelo(data: ZonaRequest):
         valor = float(row['valor'])
         datos.setdefault(tipo, []).append(valor)
 
-    tipos = ['temperatura', 'humedad', 'ph', 'nitrógeno', 'fósforo', 'potasio']
+    tipos = ['temperatura', 'humedad', 'ph', 'nitrógeno', 'fósforo', 'potasio', 'conductividad']
+
     num = len(datos.get('temperatura', []))
     if num == 0:
         return {"error": "No hay datos suficientes para ejecutar el modelo."}
@@ -120,6 +121,9 @@ def ejecutar_modelo(data: ZonaRequest):
 
     graficar_clusters(X, labels, zona_id)
     graficar_matriz_kernel(matrix, zona_id)
+    graficar_heatmap(X, tipos, zona_id)
+    graficar_matriz_confusion(labels, X, tipos, zona_id)
+
     generar_interpretacion(zona_id, labels, matrix, tipos)
 
     return {
@@ -129,10 +133,13 @@ def ejecutar_modelo(data: ZonaRequest):
         "valores": X.tolist(),
         "imagenes": {
             "clusters": f"/grafico/cluster/{zona_id}",
-            "kernel": f"/grafico/kernel/{zona_id}"
+            "kernel": f"/grafico/kernel/{zona_id}",
+            "heatmap": f"/grafico/heatmap/{zona_id}",
+            "confusion": f"/grafico/confusion/{zona_id}"
         },
         "interpretacion": f"/interpretacion/{zona_id}"
     }
+
 
 
 # 🔮 MODELO 2: Predicción cuántica de La Tinka
@@ -253,6 +260,13 @@ def ver_cluster(zona_id: int):
 @app.get("/grafico/kernel/{zona_id}")
 def ver_kernel(zona_id: int):
     return FileResponse(os.path.join("graficos", f"kernel_zona_{zona_id}.png"), media_type="image/png")
+@app.get("/grafico/heatmap/{zona_id}")
+def ver_heatmap(zona_id: int):
+    return FileResponse(os.path.join("graficos", f"heatmap_zona_{zona_id}.png"), media_type="image/png")
+
+@app.get("/grafico/confusion/{zona_id}")
+def ver_confusion(zona_id: int):
+    return FileResponse(os.path.join("graficos", f"confusion_zona_{zona_id}.png"), media_type="image/png")
 
 @app.get("/interpretacion/{zona_id}")
 def ver_interpretacion(zona_id: int):
@@ -277,6 +291,30 @@ def graficar_matriz_kernel(matrix, zona_id):
     plt.title(f"Matriz Kernel - Zona {zona_id}")
     plt.savefig(f"graficos/kernel_zona_{zona_id}.png")
     plt.close()
+
+
+def graficar_heatmap(X, tipos, zona_id):
+    df = pd.DataFrame(X, columns=tipos)
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(df.corr(), annot=True, cmap='coolwarm', fmt=".2f")
+    plt.title(f"Mapa de Calor de Indicadores - Zona {zona_id}")
+    plt.savefig(f"graficos/heatmap_zona_{zona_id}.png")
+    plt.close()
+
+def graficar_matriz_confusion(labels, X, tipos, zona_id):
+    df = pd.DataFrame(X, columns=tipos)
+    df['cluster'] = labels
+
+    # Ejemplo: binarizamos pH (mayor a 7 es alcalino)
+    df['ph_clase'] = (df['ph'] > 7).astype(int)
+
+    confusion = pd.crosstab(df['ph_clase'], df['cluster'], rownames=['PH (>7)'], colnames=['Clúster'])
+    plt.figure(figsize=(5, 4))
+    sns.heatmap(confusion, annot=True, fmt="d", cmap="YlGnBu")
+    plt.title(f"Matriz Confusión (pH vs Clúster) - Zona {zona_id}")
+    plt.savefig(f"graficos/confusion_zona_{zona_id}.png")
+    plt.close()
+
 
 def generar_interpretacion(zona_id, labels, matrix, tipos):
     total = len(labels)
