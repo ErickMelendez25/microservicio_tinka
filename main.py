@@ -426,9 +426,9 @@ Variables analizadas: {', '.join(tipos)}.
         texto += f"- {cultivo.upper():<6}: {pct:.1f}% coincidencia → {estado}\n"
         
     texto += "\n\nANÁLISIS POR CLÚSTER:\n"
-for cluster_id in sorted(df["cluster"].unique()):
-    cluster_df = df[df["cluster"] == cluster_id]
-    promedios_cluster = cluster_df[tipos].mean()
+    for cluster_id in sorted(df["cluster"].unique()):
+        cluster_df = df[df["cluster"] == cluster_id]
+        promedios_cluster = cluster_df[tipos].mean()
     
     recomendaciones_cluster = []
     for cultivo, rangos in RANGOS_CULTIVOS.items():
