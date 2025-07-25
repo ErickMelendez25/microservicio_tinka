@@ -180,7 +180,9 @@ def ejecutar_modelo(data: ZonaRequest):
     graficar_matriz_kernel(matrix, zona_id)
     graficar_heatmap(X, tipos, zona_id)
     graficar_matriz_confusion(labels, X, tipos, zona_id)
-    graficar_confusion_general(labels, zona_id)  # <- nuevo
+    graficar_confusion_general(y_true=labels, y_pred=predictions, zona_id=zona_id)
+    
+
 
     generar_interpretacion(zona_id, labels, X, tipos)
 
@@ -325,12 +327,13 @@ def ver_heatmap(zona_id: int):
     return FileResponse(os.path.join("graficos", f"heatmap_zona_{zona_id}.png"), media_type="image/png")
 
 @app.get("/grafico/confusion/{zona_id}")
-def ver_confusion(zona_id: int):
+def get_confusion_graph(zona_id: int):
     path = os.path.join("graficos", f"confusion_zona_{zona_id}.png")
-    if os.path.exists(path):
-        return FileResponse(path, media_type="image/png")
-    return {"error": "Imagen de matriz de confusión general no encontrada"}
- 
+
+    if not os.path.exists(path):
+        return JSONResponse(status_code=404, content={"error": "La imagen de la matriz de confusión no fue generada. Verifica si hubo datos suficientes."})
+
+    return FileResponse(path)
 
 @app.get("/interpretacion/{zona_id}")
 def ver_interpretacion(zona_id: int):
@@ -397,19 +400,26 @@ def graficar_matriz_confusion(labels, X, tipos, zona_id):
         plt.savefig(f"graficos/confusion_zona_{zona_id}_{cultivo}.png")
         plt.close()
 
-def graficar_confusion_general(labels, zona_id):
-    print(f"Generando matriz de confusión general para zona {zona_id}")
-    from sklearn.metrics import confusion_matrix
-    conf_matrix = confusion_matrix(labels, labels)  # Comparación consigo mismos
+def graficar_confusion_general(y_true, y_pred, zona_id):
+    labels_unicos = sorted(list(set(y_true) | set(y_pred)))  # combina únicas de ambos
+
+    if len(labels_unicos) < 2:
+        print(f"[Zona {zona_id}] No hay suficientes clases para generar matriz de confusión.")
+        return
+
+    cm = confusion_matrix(y_true, y_pred, labels=labels_unicos)
 
     plt.figure(figsize=(6, 4))
-    sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues")
-    plt.title(f"Matriz de Confusión General - Zona {zona_id}")
-    plt.xlabel("Predicción")
-    plt.ylabel("Real")
-    nombre_imagen = f"graficos/confusion_general_zona_{zona_id}.png"
-    plt.savefig(nombre_imagen)
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
+                xticklabels=labels_unicos, yticklabels=labels_unicos)
+    plt.xlabel("Etiqueta Predicha")
+    plt.ylabel("Etiqueta Verdadera")
+    plt.title("Matriz de Confusión General")
+
+    path = os.path.join("graficos", f"confusion_zona_{zona_id}.png")
+    plt.savefig(path)
     plt.close()
+
 
 
 def generar_interpretacion(zona_id, labels, X, tipos):
