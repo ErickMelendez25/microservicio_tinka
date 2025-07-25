@@ -403,35 +403,28 @@ Variables analizadas: {', '.join(tipos)}.
 
 
     # Comparación con cada cultivo
-    def evaluar_cultivo(cultivo, rangos, promedios_vector):
-        # Construir el vector ideal del cultivo
-        cultivo_vector = []
+    def evaluar_cultivo(cultivo, rangos, promedios):
+        puntaje = 0
+        total = 0
+        detalles = []
         for tipo in tipos:
             if tipo in rangos:
+                valor = promedios.get(tipo)
+                if valor is None:
+                    continue
                 min_val, max_val = rangos[tipo]
-                cultivo_vector.append((min_val + max_val) / 2)  # valor ideal: el centro del rango
-            else:
-                cultivo_vector.append(0.0)  # valor neutro si no está definido
-        
-        # Escalar ambos vectores
-        scaler = StandardScaler()
-        vectores = np.array([cultivo_vector, promedios_vector])
-        vectores_scaled = scaler.fit_transform(vectores)
-
-        # Mapa de características cuántico
-        feature_map = ZZFeatureMap(feature_dimension=len(tipos), reps=2)
-        kernel = FidelityQuantumKernel(feature_map=feature_map)
-        
-        # Calcular fidelidad cuántica
-        fidelidad = kernel.evaluate(x_vec=[vectores_scaled[0]], y_vec=[vectores_scaled[1]])[0, 0]
-        return float(fidelidad) * 100
+                if min_val <= valor <= max_val:
+                    puntaje += 1
+                else:
+                    detalles.append(f"{tipo}: {valor:.2f} fuera de rango ({min_val}-{max_val})")
+                total += 1
+        return (puntaje / total) * 100 if total > 0 else 0, detalles
 
 
 
     recomendaciones = []
     for cultivo, rangos in RANGOS_CULTIVOS.items():
-        match_pct = evaluar_cultivo(cultivo, rangos, promedios.values)
-
+        match_pct, detalles = evaluar_cultivo(cultivo, rangos, promedios)
         recomendaciones.append((cultivo, match_pct))
 
     recomendaciones.sort(key=lambda x: -x[1])
