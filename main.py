@@ -331,6 +331,13 @@ def ver_confusion(zona_id: int):
 def ver_interpretacion(zona_id: int):
     return FileResponse(os.path.join("interpretaciones", f"interpretacion_zona_{zona_id}.txt"), media_type="text/plain")
 
+@app.get("/grafico/confusion/{zona_id}/{cultivo}")
+def ver_confusion_cultivo(zona_id: int, cultivo: str):
+    path = f"graficos/confusion_zona_{zona_id}_{cultivo}.png"
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/png")
+    return {"error": "No se encontró el gráfico solicitado"}
+
 
 # 📊 Funciones auxiliares
 def graficar_clusters(X, labels, zona_id):
@@ -359,20 +366,32 @@ def graficar_heatmap(X, tipos, zona_id):
     plt.title(f"Mapa de Calor de Indicadores - Zona {zona_id}")
     plt.savefig(f"graficos/heatmap_zona_{zona_id}.png")
     plt.close()
+    
+def etiqueta_por_cultivo(fila, cultivo, rangos):
+    for tipo, (min_val, max_val) in rangos.items():
+        if tipo in fila:
+            if not (min_val <= fila[tipo] <= max_val):
+                return 0  # No cumple
+    return 1  # Cumple
+
 
 def graficar_matriz_confusion(labels, X, tipos, zona_id):
     df = pd.DataFrame(X, columns=tipos)
     df['cluster'] = labels
 
-    # Ejemplo: binarizamos pH (mayor a 7 es alcalino)
-    df['ph_clase'] = (df['ph'] > 7).astype(int)
+    for cultivo, rangos in RANGOS_CULTIVOS.items():
+        df['etiqueta_real'] = df.apply(lambda fila: etiqueta_por_cultivo(fila, cultivo, rangos), axis=1)
 
-    confusion = pd.crosstab(df['ph_clase'], df['cluster'], rownames=['PH (>7)'], colnames=['Clúster'])
-    plt.figure(figsize=(5, 4))
-    sns.heatmap(confusion, annot=True, fmt="d", cmap="YlGnBu")
-    plt.title(f"Matriz Confusión (pH vs Clúster) - Zona {zona_id}")
-    plt.savefig(f"graficos/confusion_zona_{zona_id}.png")
-    plt.close()
+        # Crear matriz de confusión entre cluster (predicho) y etiqueta_real (ground truth)
+        confusion = pd.crosstab(df['etiqueta_real'], df['cluster'], rownames=[f'{cultivo.upper()} (etiqueta real)'], colnames=['Clúster (cuántico)'])
+
+        plt.figure(figsize=(5, 4))
+        sns.heatmap(confusion, annot=True, fmt="d", cmap="YlGnBu")
+        plt.title(f"Matriz Confusión - {cultivo.upper()} - Zona {zona_id}")
+        plt.tight_layout()
+        plt.savefig(f"graficos/confusion_zona_{zona_id}_{cultivo}.png")
+        plt.close()
+
 
 
 def generar_interpretacion(zona_id, labels, X, tipos):
