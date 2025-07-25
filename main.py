@@ -326,7 +326,11 @@ def ver_heatmap(zona_id: int):
 
 @app.get("/grafico/confusion/{zona_id}")
 def ver_confusion(zona_id: int):
-    return FileResponse(os.path.join("graficos", f"confusion_zona_{zona_id}.png"), media_type="image/png")
+    path = os.path.join("graficos", f"confusion_zona_{zona_id}.png")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/png")
+    return {"error": "Imagen de matriz de confusión general no encontrada"}
+ 
 
 @app.get("/interpretacion/{zona_id}")
 def ver_interpretacion(zona_id: int):
@@ -394,6 +398,7 @@ def graficar_matriz_confusion(labels, X, tipos, zona_id):
         plt.close()
 
 def graficar_confusion_general(labels, zona_id):
+    print(f"Generando matriz de confusión general para zona {zona_id}")
     from sklearn.metrics import confusion_matrix
     conf_matrix = confusion_matrix(labels, labels)  # Comparación consigo mismos
 
