@@ -327,13 +327,13 @@ def ver_heatmap(zona_id: int):
     return FileResponse(os.path.join("graficos", f"heatmap_zona_{zona_id}.png"), media_type="image/png")
 
 @app.get("/grafico/confusion/{zona_id}")
-def get_confusion_graph(zona_id: int):
+def mostrar_confusion(zona_id: int):
     path = os.path.join("graficos", f"confusion_zona_{zona_id}.png")
-
-    if not os.path.exists(path):
-        return JSONResponse(status_code=404, content={"error": "La imagen de la matriz de confusión no fue generada. Verifica si hubo datos suficientes."})
-
-    return FileResponse(path)
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/png")
+    else:
+        return {"error": f"No se encontró la matriz de confusión para la zona {zona_id}."}
+ 
 
 @app.get("/interpretacion/{zona_id}")
 def ver_interpretacion(zona_id: int):
