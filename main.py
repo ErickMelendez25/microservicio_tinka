@@ -180,6 +180,7 @@ def ejecutar_modelo(data: ZonaRequest):
     graficar_matriz_kernel(matrix, zona_id)
     graficar_heatmap(X, tipos, zona_id)
     graficar_matriz_confusion(labels, X, tipos, zona_id)
+    graficar_confusion_general(labels, zona_id)  # <- nuevo
 
     generar_interpretacion(zona_id, labels, X, tipos)
 
@@ -392,6 +393,18 @@ def graficar_matriz_confusion(labels, X, tipos, zona_id):
         plt.savefig(f"graficos/confusion_zona_{zona_id}_{cultivo}.png")
         plt.close()
 
+def graficar_confusion_general(labels, zona_id):
+    from sklearn.metrics import confusion_matrix
+    conf_matrix = confusion_matrix(labels, labels)  # Comparación consigo mismos
+
+    plt.figure(figsize=(6, 4))
+    sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues")
+    plt.title(f"Matriz de Confusión General - Zona {zona_id}")
+    plt.xlabel("Predicción")
+    plt.ylabel("Real")
+    nombre_imagen = f"graficos/confusion_general_zona_{zona_id}.png"
+    plt.savefig(nombre_imagen)
+    plt.close()
 
 
 def generar_interpretacion(zona_id, labels, X, tipos):
