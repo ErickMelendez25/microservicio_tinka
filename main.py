@@ -364,13 +364,16 @@ def graficar_matriz_confusion(labels, X, tipos, zona_id):
     df = pd.DataFrame(X, columns=tipos)
     df['cluster'] = labels
 
-    # Ejemplo: binarizamos pH (mayor a 7 es alcalino)
-    df['ph_clase'] = (df['ph'] > 7).astype(int)
+    # Calculamos el promedio de cada indicador por cluster
+    mean_by_cluster = df.groupby('cluster')[tipos].mean()
 
-    confusion = pd.crosstab(df['ph_clase'], df['cluster'], rownames=['PH (>7)'], colnames=['Clúster'])
-    plt.figure(figsize=(5, 4))
-    sns.heatmap(confusion, annot=True, fmt="d", cmap="YlGnBu")
-    plt.title(f"Matriz Confusión (pH vs Clúster) - Zona {zona_id}")
+    # Creamos un heatmap de esos promedios
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(mean_by_cluster, annot=True, fmt=".2f", cmap="YlGnBu")
+    plt.title(f"Promedios de Indicadores por Clúster - Zona {zona_id}")
+    plt.ylabel("Clúster")
+    plt.xlabel("Indicadores")
+    plt.tight_layout()
     plt.savefig(f"graficos/confusion_zona_{zona_id}.png")
     plt.close()
 
