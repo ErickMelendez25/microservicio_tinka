@@ -36,6 +36,7 @@ app = FastAPI()
 
 
 origins = [
+    "https://qiskit.academionlinegpt.com",
     "http://localhost:5173", 
     "https://tinka.academionlinegpt.com",
     "https://microservicioqiskit-production.up.railway.app"
