@@ -1,108 +1,174 @@
+# main.py
 import os
-import mysql.connector
 import numpy as np
 import joblib
+import mysql.connector
 from dotenv import load_dotenv
-from sklearn.preprocessing import StandardScaler
-from qiskit_machine_learning.kernels import FidelityQuantumKernel
+from fastapi import FastAPI
+from typing import List, Dict
 from qiskit.circuit.library import ZZFeatureMap
-from qiskit_algorithms.utils import algorithm_globals
-from qiskit.primitives import Sampler
+from qiskit_machine_learning.kernels import FidelityQuantumKernel
+from qiskit.utils import algorithm_globals
 
-# ======================
-# Cargar .env
-# ======================
+app = FastAPI()
 load_dotenv()
 
 DB_HOST = os.getenv("DB_HOST", "gondola.proxy.rlwy.net")
 DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "UdeLsMmVgolwytbCQvfTEJbhoMHpLdOz")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_PORT = int(os.getenv("DB_PORT", 34954))
 DB_NAME = os.getenv("DB_NAME", "railway")
 
-# Debug para confirmar que las variables se leen
-print("DEBUG DB_HOST:", DB_HOST)
-print("DEBUG DB_USER:", DB_USER)
-print("DEBUG DB_PASSWORD:", "(oculto)" if DB_PASSWORD else None)
-print("DEBUG DB_PORT:", DB_PORT)
-print("DEBUG DB_NAME:", DB_NAME)
+def conectar_db():
+    return mysql.connector.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        port=DB_PORT,
+        database=DB_NAME
+    )
 
-# ======================
-# Conectar a DB y traer los últimos 200 registros
-# ======================
-print("🔎 Leyendo historiales desde DB (últimos 200 registros)...")
+def generar_combinaciones_probabilisticas(frequencies, n=1000):
+    """
+    Genera un conjunto (n) de combinaciones candidatas ponderadas por frecuencia.
+    Devuelve lista de arreglos shape (6,).
+    """
+    bolas = np.arange(1, len(frequencies))
+    probs = frequencies / np.sum(frequencies)
+    candidatos = []
+    # generamos n candidatos, cada uno sampleando 6 bolas sin reemplazo con probs
+    for _ in range(n):
+        comb = np.random.choice(bolas, size=6, replace=False, p=probs)
+        comb.sort()
+        candidatos.append(comb)
+    # devolver array unico (eliminar duplicados)
+    candidatos_np = np.unique(np.array(candidatos), axis=0)
+    return candidatos_np
 
-conn = mysql.connector.connect(
-    host=DB_HOST,
-    user=DB_USER,
-    password=DB_PASSWORD,
-    port=DB_PORT,
-    database=DB_NAME
-)
-cursor = conn.cursor()
+def score_candidates_with_kernel(candidates: np.ndarray, X_train_scaled: np.ndarray, kernel_obj) -> np.ndarray:
+    """
+    Puntúa cada candidato por su similitud promedio con el set de entrenamiento
+    usando el objeto fidelity kernel (su método evaluate).
+    """
+    if candidates.size == 0:
+        return np.array([])
+    # candidates shape (M,6). Escalar con scaler si fue usado (aquí asumimos scaler ya aplicado por quien genera candidatos)
+    # Kernel expects input feature vectors in same shape as training.
+    try:
+        K_cx = kernel_obj.evaluate(candidates, X_train_scaled)  # shape (M, Ntrain)
+        scores = np.mean(K_cx, axis=1)  # similitud promedio con datos reales
+        return scores
+    except Exception as e:
+        print("Error al puntuar con kernel:", e)
+        # fallback: usar frecuencia media de bolas como proxy
+        freqs = np.bincount(candidates.flatten().astype(int), minlength=48)
+        scores = np.mean(freqs) * np.ones(candidates.shape[0])
+        return scores
 
-cursor.execute("""
-    SELECT bola1, bola2, bola3, bola4, bola5, bola6 
-    FROM sorteos 
-    ORDER BY fecha DESC 
-    LIMIT 200
-""")
-rows = cursor.fetchall()
-conn.close()
+@app.post("/api/ejecutarmodelos")
+def ejecutar_modelos(top_n: int = 10):
+    """
+    Endpoint que genera combinaciones, las puntúa con el kernel cuántico
+    y guarda las top_n en la tabla 'predicciones'.
+    """
+    try:
+        print("Iniciando ejecución del modelo...")
 
-if not rows:
-    raise ValueError("⚠️ No hay registros en la tabla 'sorteos'.")
+        conn = conectar_db()
+        cursor = conn.cursor()
 
-# ======================
-# Preparar datos
-# ======================
-print("🔢 Preparando X, y...")
+        # 1) Leer historiales (si necesitas X_train_scaled para kernel)
+        cursor.execute("""
+            SELECT bola1, bola2, bola3, bola4, bola5, bola6
+            FROM sorteos
+            ORDER BY fecha DESC
+            LIMIT 200
+        """)
+        rows = cursor.fetchall()
+        if not rows:
+            return {"error": "No hay registros en 'sorteos'."}
+        X = np.array(rows, dtype=float)  # shape (N,6)
 
-X = np.array(rows)
-y = np.arange(len(rows)) % 2  # etiquetas dummy (0 y 1) solo para que entrene
+        # 2) Cargar frecuencias
+        if os.path.exists("frequencies.npy"):
+            frequencies = np.load("frequencies.npy")
+            print("Frecuencias cargadas.")
+        else:
+            frequencies = np.bincount(X.flatten().astype(int), minlength=48)
+            np.save("frequencies.npy", frequencies)
+            print("Frecuencias calculadas y guardadas.")
 
-# ======================
-# Estadísticas simples (frecuencia de bolas)
-# ======================
-print("📊 Calculando estadísticas de frecuencia...")
+        # 3) Cargar kernel y scaler si existen
+        fidelity_kernel = None
+        scaler = None
+        if os.path.exists("quantum_kernel_tinka.joblib"):
+            fidelity_kernel = joblib.load("quantum_kernel_tinka.joblib")
+            print("Kernel cuántico cargado.")
+        else:
+            # crear un kernel sencillo si no existe
+            algorithm_globals.random_seed = 42
+            fm = ZZFeatureMap(feature_dimension=X.shape[1], reps=2)
+            fidelity_kernel = FidelityQuantumKernel(feature_map=fm)
+            joblib.dump(fidelity_kernel, "quantum_kernel_tinka.joblib")
+            print("Kernel no existente — creado y guardado por defecto.")
 
-frequencies = np.bincount(X.flatten(), minlength=48)  # soporta hasta bola 47
-top_balls = np.argsort(frequencies)[::-1][:10]
+        if os.path.exists("scaler_qsvc_tinka.joblib"):
+            scaler = joblib.load("scaler_qsvc_tinka.joblib")
+            print("Scaler cargado.")
+        else:
+            # crear scaler básico y guardarlo
+            from sklearn.preprocessing import StandardScaler
+            scaler = StandardScaler()
+            scaler.fit(X)
+            joblib.dump(scaler, "scaler_qsvc_tinka.joblib")
+            print("Scaler no existente — creado y guardado.")
 
-print(f"🎯 Bolas más frecuentes: {top_balls}")
+        # aplicar escala a X para que kernel y scoring sean coherentes
+        X_scaled = scaler.transform(X)
 
-# ======================
-# Escalar los datos
-# ======================
-print("⚖️ Escalando X con StandardScaler...")
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-joblib.dump(scaler, "scaler_qsvc_tinka.joblib")
-print("✅ Scaler guardado: scaler_qsvc_tinka.joblib")
+        # 4) Generar muchos candidatos (aleatorios ponderados por frecuencia)
+        candidatos = generar_combinaciones_probabilisticas(frequencies, n=3000)  # genera ~3000 candidatos
+        print("Candidatos generados:", candidatos.shape[0])
 
-# ======================
-# Crear Quantum Kernel
-# ======================
-print("🎛️ Entrenando modelo cuántico (kernel) con 200 registros...")
+        # Escalar candidatos con el mismo scaler
+        candidatos_scaled = scaler.transform(candidatos.astype(float))
 
-algorithm_globals.random_seed = 12345
-feature_map = ZZFeatureMap(feature_dimension=X_scaled.shape[1], reps=2, entanglement="linear")
+        # 5) Puntuar candidatos con kernel
+        scores = score_candidates_with_kernel(candidatos_scaled, X_scaled, fidelity_kernel)
+        # combinamos candidatos y scores
+        idx_sorted = np.argsort(scores)[::-1]  # descendente
+        top_idx = idx_sorted[:top_n]
+        top_candidates = candidatos[top_idx]
+        top_scores = scores[top_idx]
 
-sampler = Sampler()
-fidelity_kernel = FidelityQuantumKernel(feature_map=feature_map, sampler=sampler)
+        # 6) Preparar y guardar top N en la tabla predicciones
+        nuevas = []
+        for comb, score in zip(top_candidates, top_scores):
+            # generar boliyapa ponderado por frecuencia
+            boliyapa = int(np.random.choice(np.arange(1, len(frequencies)), p=frequencies/np.sum(frequencies)))
+            prob = float(score)  # la "probabilidad" la representamos por el score (normalizar si quieres)
+            modelo_version = "QKernel_v2.1"
 
-print("✅ Creando FidelityQuantumKernel (esto puede tardar un poco)...")
+            pred = {
+                "bola1": int(comb[0]), "bola2": int(comb[1]), "bola3": int(comb[2]),
+                "bola4": int(comb[3]), "bola5": int(comb[4]), "bola6": int(comb[5]),
+                "boliyapa": boliyapa, "probabilidad": prob, "modelo_version": modelo_version
+            }
+            nuevas.append(pred)
 
-kernel_matrix = fidelity_kernel.evaluate(X_scaled)
-print("✅ Matriz kernel calculada con shape:", kernel_matrix.shape)
+            # Insertar en la tabla predicciones
+            cursor.execute("""
+                INSERT INTO predicciones 
+                (bola1, bola2, bola3, bola4, bola5, bola6, boliyapa, probabilidad, modelo_version)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (pred["bola1"], pred["bola2"], pred["bola3"], pred["bola4"], pred["bola5"], pred["bola6"],
+                  pred["boliyapa"], pred["probabilidad"], pred["modelo_version"]))
+        conn.commit()
+        conn.close()
 
-# ======================
-# Guardar kernel y estadísticas
-# ======================
-joblib.dump(fidelity_kernel, "quantum_kernel_tinka.joblib")
-print("✅ Kernel cuántico guardado: quantum_kernel_tinka.joblib")
+        print(f"Guardadas {len(nuevas)} predicciones en DB.")
+        return {"detalle": "Modelo ejecutado", "predicciones": nuevas}
 
-np.save("frequencies.npy", frequencies)
-print("✅ Frecuencias guardadas en frequencies.npy")
-
-print("🏁 Entrenamiento terminado con éxito usando 200 registros")
+    except Exception as e:
+        print("Error en /api/ejecutarmodelos:", e)
+        return {"error": str(e)}
