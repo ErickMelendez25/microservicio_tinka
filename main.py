@@ -199,3 +199,37 @@ def ejecutar_modelos(top_n: int = 10):
     except Exception as e:
         print("Error en /api/ejecutarmodelos:", e)
         return {"error": str(e)}
+@app.get("/api/frecuencias")
+def obtener_frecuencias():
+    """
+    Devuelve la frecuencia de aparición de cada número (1 al 48)
+    según la tabla 'sorteos'.
+    """
+    try:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT bola1, bola2, bola3, bola4, bola5, bola6
+            FROM sorteos
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            return {"error": "No hay datos en la tabla 'sorteos'."}
+
+        # Contar ocurrencias de cada número
+        X = np.array(rows, dtype=int)
+        frecuencias = np.bincount(X.flatten(), minlength=49)[1:]  # índices 1-48
+
+        # Crear lista de diccionarios
+        resultado = [
+            {"numero": i + 1, "veces_salida": int(frecuencias[i])}
+            for i in range(48)
+        ]
+
+        return resultado
+
+    except Exception as e:
+        print("Error en /api/frecuencias:", e)
+        return {"error": str(e)}
