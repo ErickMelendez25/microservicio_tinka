@@ -8,9 +8,27 @@ from fastapi import FastAPI
 from qiskit.circuit.library import ZZFeatureMap
 from qiskit_machine_learning.kernels import FidelityQuantumKernel
 from qiskit.utils import algorithm_globals
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 load_dotenv()
+
+
+# =============================
+# 🔒 Configuración de CORS
+# =============================
+origins = [
+    "http://localhost:3000",                 # Para pruebas locales
+    "https://tinka.grupo-digital-nextri.com" # Tu dominio en producción
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,      # Dominios permitidos
+    allow_credentials=True,
+    allow_methods=["*"],        # Permitir todos los métodos (GET, POST, etc.)
+    allow_headers=["*"],        # Permitir todas las cabeceras
+)
 
 # =============================
 # 🔹 Configuración de la base
