@@ -9,6 +9,7 @@ from qiskit.circuit.library import ZZFeatureMap
 from qiskit_machine_learning.kernels import FidelityQuantumKernel
 from qiskit.utils import algorithm_globals
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import BackgroundTasks
 
 app = FastAPI()
 load_dotenv()
@@ -18,9 +19,11 @@ load_dotenv()
 # 🔒 Configuración de CORS
 # =============================
 origins = [
-    "http://localhost:3000",                 # Para pruebas locales
-    "https://tinka.grupo-digital-nextri.com" # Tu dominio en producción
+    "http://localhost:3000",
+    "https://tinka-production.up.railway.app",
+    "https://tinka.grupo-digital-nextri.com"
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -105,118 +108,58 @@ def score_candidates_with_kernel(candidates: np.ndarray, X_train_scaled: np.ndar
 # 🔹 Endpoint principal
 # ==============================================================
 @app.post("/api/ejecutarmodelos")
-def ejecutar_modelos(top_n: int = 10):
-    """
-    Genera combinaciones, las puntúa con el kernel cuántico
-    y guarda las top_n en la tabla 'predicciones'.
-    """
-    try:
-        print("Iniciando ejecución del modelo...")
+async def ejecutar_modelos(background_tasks: BackgroundTasks):
+    background_tasks.add_task(_proceso_modelo)
+    return {"status": "🧠 Modelo ejecutándose en segundo plano..."}
 
+def _proceso_modelo():
+    try:
+        print("🔄 Iniciando ejecución del modelo en background...")
         conn = conectar_db()
         cursor = conn.cursor()
 
-        # 1) Leer históricos
         cursor.execute("""
             SELECT bola1, bola2, bola3, bola4, bola5, bola6
-            FROM sorteos
-            ORDER BY fecha DESC
-            LIMIT 200
+            FROM sorteos ORDER BY fecha DESC LIMIT 200
         """)
         rows = cursor.fetchall()
-        if not rows:
-            return {"error": "No hay registros en 'sorteos'."}
         X = np.array(rows, dtype=float)
 
-        # 2) Cargar o generar frecuencias
-        if os.path.exists("frequencies.npy"):
-            frequencies = np.load("frequencies.npy")
-            print("Frecuencias cargadas.")
-        else:
-            frequencies = np.bincount(X.flatten().astype(int), minlength=48)
-            np.save("frequencies.npy", frequencies)
-            print("Frecuencias calculadas y guardadas.")
+        frequencies = np.bincount(X.flatten().astype(int), minlength=48)
+        np.save("frequencies.npy", frequencies)
 
-        # 3) Cargar kernel y scaler
-        fidelity_kernel = None
-        scaler = None
-
-        if os.path.exists("quantum_kernel_tinka.joblib"):
-            fidelity_kernel = joblib.load("quantum_kernel_tinka.joblib")
-            print("Kernel cuántico cargado.")
-        else:
-            algorithm_globals.random_seed = 42
-            fm = ZZFeatureMap(feature_dimension=X.shape[1], reps=2)
-            fidelity_kernel = FidelityQuantumKernel(feature_map=fm)
-            joblib.dump(fidelity_kernel, "quantum_kernel_tinka.joblib")
-            print("Kernel creado y guardado por defecto.")
-
-        if os.path.exists("scaler_qsvc_tinka.joblib"):
-            from sklearn.preprocessing import StandardScaler
-            scaler = joblib.load("scaler_qsvc_tinka.joblib")
-            print("Scaler cargado.")
-        else:
-            from sklearn.preprocessing import StandardScaler
-            scaler = StandardScaler()
-            scaler.fit(X)
-            joblib.dump(scaler, "scaler_qsvc_tinka.joblib")
-            print("Scaler creado y guardado.")
-
+        from sklearn.preprocessing import StandardScaler
+        scaler = StandardScaler()
+        scaler.fit(X)
         X_scaled = scaler.transform(X)
 
-        # 4) Generar candidatos
-        candidatos = generar_combinaciones_probabilisticas(frequencies, n=3000)
-        print("Candidatos generados:", candidatos.shape[0])
+        fm = ZZFeatureMap(feature_dimension=X.shape[1], reps=2)
+        kernel = FidelityQuantumKernel(feature_map=fm)
 
-        if candidatos.size == 0:
-            return {"error": "No se generaron candidatos válidos."}
-
+        candidatos = generar_combinaciones_probabilisticas(frequencies, n=1000)
         candidatos_scaled = scaler.transform(candidatos.astype(float))
+        scores = score_candidates_with_kernel(candidatos_scaled, X_scaled, kernel)
 
-        # 5) Puntuar
-        scores = score_candidates_with_kernel(candidatos_scaled, X_scaled, fidelity_kernel)
+        idx_sorted = np.argsort(scores)[::-1][:10]
+        top = candidatos[idx_sorted]
+        top_scores = scores[idx_sorted]
 
-        if len(scores) != len(candidatos):
-            print(f"⚠️ Len(scores)={len(scores)} distinto de Len(candidatos)={len(candidatos)} — corrigiendo tamaños.")
-            min_len = min(len(scores), len(candidatos))
-            scores = scores[:min_len]
-            candidatos = candidatos[:min_len]
-
-        idx_sorted = np.argsort(scores)[::-1]
-        top_idx = idx_sorted[:top_n]
-        top_candidates = candidatos[top_idx]
-        top_scores = scores[top_idx]
-
-        # 6) Guardar top N
-        nuevas = []
-        for comb, score in zip(top_candidates, top_scores):
-            boliyapa = int(np.random.choice(np.arange(1, len(frequencies) + 1),
-                                            p=frequencies / np.sum(frequencies)))
-            prob = float(score)
-            modelo_version = "QKernel_v2.1"
-
-            pred = {
-                "bola1": int(comb[0]), "bola2": int(comb[1]), "bola3": int(comb[2]),
-                "bola4": int(comb[3]), "bola5": int(comb[4]), "bola6": int(comb[5]),
-                "boliyapa": boliyapa, "probabilidad": prob, "modelo_version": modelo_version
-            }
-            nuevas.append(pred)
-
+        for comb, score in zip(top, top_scores):
             cursor.execute("""
                 INSERT INTO predicciones 
                 (bola1, bola2, bola3, bola4, bola5, bola6, boliyapa, probabilidad, modelo_version)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (pred["bola1"], pred["bola2"], pred["bola3"], pred["bola4"], pred["bola5"], pred["bola6"],
-                  pred["boliyapa"], pred["probabilidad"], pred["modelo_version"]))
+            """, (
+                int(comb[0]), int(comb[1]), int(comb[2]),
+                int(comb[3]), int(comb[4]), int(comb[5]),
+                np.random.randint(1, 49), float(score), "QKernel_v2.1"
+            ))
         conn.commit()
         conn.close()
-
-        print(f"Guardadas {len(nuevas)} predicciones en DB.")
-        return {"detalle": "Modelo ejecutado", "predicciones": nuevas}
-
+        print("✅ Modelo finalizado y guardado en DB.")
     except Exception as e:
-        print("Error en /api/ejecutarmodelos:", e)
-        return {"error": str(e)}
+        print("❌ Error en proceso modelo:", e)
+        
 @app.get("/api/frecuencias")
 def obtener_frecuencias():
     """
